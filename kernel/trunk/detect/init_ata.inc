@@ -471,6 +471,7 @@ include 'sear_par.inc'
         mov     esi, boot_init_sys
         call    boot_log
         call    Parser_params
+        DEBUGF  1, "K : sysdir = %s\n", sysdir_path-1
 
 if ~ defined extended_primary_loader
 ; ramdisk image should be loaded by extended primary loader if it exists

@@ -1013,6 +1013,7 @@ endg
         test    eax, eax
         jns     first_app_found
 
+        DEBUGF  1, "K : first app failed: %x\n", eax
         mov     esi, boot_failed
         call    boot_log
 
