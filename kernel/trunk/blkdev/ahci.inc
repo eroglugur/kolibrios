@@ -9,7 +9,7 @@
 PCI_REG_STATUS_COMMAND = 0x0004
 PCI_REG_BAR5 = 0x0024
 
-AHCI_DBGLVL = 0 ; debug output verbosity level. 0 - less verbose, 1 - more verbose
+AHCI_DBGLVL = 1 ; debug output verbosity level. 0 - less verbose, 1 - more verbose
 
 ; different SATA device signatures
 SATA_SIG_ATA    = 0x00000101    ; SATA drive
@@ -1314,6 +1314,11 @@ proc ahci_read stdcall pdata: dword, buffer: dword, startsector: qword, numsecto
         jz      .read_fail
 
         DEBUGF  AHCI_DBGLVL, "    EAX = 0x%x\n", eax
+
+        push    eax
+        mov     edx, [buffer]
+        DEBUGF  AHCI_DBGLVL, "    data[0..3] = 0x%x\n", [edx]
+        pop     eax
 
         add     [buffer], eax
         shr     eax, 9 ; /=  512
