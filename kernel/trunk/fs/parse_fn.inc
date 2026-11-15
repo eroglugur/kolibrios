@@ -35,6 +35,22 @@ if defined extended_primary_loader
         mov     edi, sysdir_path-1
         mov     ecx, 20
         rep movsb
+; Kolibri 2.0: syspath=AUTO - probe disks for the system directory
+; so the same image boots on IDE (HDn) and AHCI/SD (SDn) machines.
+; Probing cannot run here: AHCI disks are registered after this point,
+; so only raise a flag; the kernel resolves it before its first
+; /sys access (PS/2 driver load in kernel.asm).
+        cmp     dword [sysdir_path-1], 'AUTO'
+        jnz     .done
+        cmp     byte [sysdir_path+3], 0
+        jnz     .done
+        mov     byte [syspath_auto], 1
+; placeholder until all disks are up
+        mov     esi, syspath_rd
+        mov     edi, sysdir_path-1
+        mov     ecx, 6
+        rep movsb
+.done:
         ret
 else
         mov     ax, [BOOT.sys_disk]
@@ -82,6 +98,82 @@ else
         ret
 end if
 
+endp
+
+iglobal
+syspath_tail    db      '/KOLIBRIOS/LAUNCHER', 0     ; probe tail
+syspath_rd      db      '/RD/1', 0                   ; fallback
+endg
+
+uglobal
+syspath_auto    rb      1
+syspath_probe   rb      32
+syspath_probe_buf rb    4
+endg
+
+; Kolibri 2.0: automatically locate the system directory.
+; Probes /HDn/m then /SDn/m (n = 0..3, m = 1..4) for KOLIBRIOS/LAUNCHER,
+; copies the first working prefix to sysdir_path-1 as '/XDn/m/KOLIBRIOS'.
+; Falls back to /RD/1 when nothing is found.
+proc syspath_autodetect
+        push    ebx ecx edx esi edi
+        mov     bl, 'H'                 ; disk type: IDE first
+.type_loop:
+        xor     edx, edx                ; DL = disk number 0..3
+.disk_loop:
+        mov     cl, '1'                 ; CL = partition number '1'..'4'
+.part_loop:
+; build "/XDn/m" + tail in syspath_probe
+        mov     esi, syspath_probe
+        mov     byte [esi], '/'
+        mov     [esi+1], bl
+        mov     word [esi+2], 'D0'
+        mov     al, '0'
+        add     al, dl
+        mov     [esi+3], al
+        mov     byte [esi+4], '/'
+        mov     [esi+5], cl
+        lea     edi, [esi+6]
+        mov     esi, syspath_tail
+@@:     lodsb
+        stosb
+        test    al, al
+        jnz     @b
+; probe: read the first 4 bytes of the marker file
+        pushad
+        stdcall read_file, syspath_probe, syspath_probe_buf, 0, 4
+        test    eax, eax
+        popad
+        jnz     .next_part
+; hit: copy "/XDn/m/KOLIBRIOS" into sysdir_path-1
+        mov     esi, syspath_probe
+        mov     edi, sysdir_path-1
+        mov     ecx, 6 + 10             ; "/XDn/m" + "/KOLIBRIOS"
+        rep movsb
+        mov     byte [edi], 0
+        DEBUGF  1, "K : AUTO sysdir found: %s\n", sysdir_path-1
+        jmp     .done
+.next_part:
+        inc     cl
+        cmp     cl, '4'
+        jbe     .part_loop
+.next_disk:
+        inc     dl
+        cmp     dl, 3
+        jbe     .disk_loop
+        cmp     bl, 'S'
+        je      .fallback               ; both disk types exhausted
+        mov     bl, 'S'
+        jmp     .type_loop
+.fallback:
+        mov     esi, syspath_rd
+        mov     edi, sysdir_path-1
+        mov     ecx, 6
+        rep movsb
+        DEBUGF  1, "K : AUTO sysdir fallback to /RD/1\n"
+.done:
+        pop     edi esi edx ecx ebx
+        ret
 endp
 
 cp866toUpper:

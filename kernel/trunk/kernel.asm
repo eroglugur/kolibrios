@@ -998,6 +998,12 @@ endg
         DEBUGF  1, "K : IRQ1 return code %x\n", eax
 .no_keyboard:
 
+; Kolibri 2.0: resolve syspath=AUTO now that all disks are registered
+        cmp     byte [syspath_auto], 1
+        jnz     @f
+        stdcall syspath_autodetect
+@@:
+
 ; Load PS/2 mouse driver
         mov     esi, boot_setmouse
         call    boot_log
