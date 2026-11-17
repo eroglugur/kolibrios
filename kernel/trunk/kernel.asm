@@ -951,9 +951,17 @@ include "detect/vortex86.inc"                     ; Vortex86 SoC detection code
         call    palette320x200
       no_pal_ega:
 
+; Kolibri 2.0: resolve syspath=AUTO before the first /sys access
+; (default skin load). All disks are registered since ahci_init.
+        cmp     byte [syspath_auto], 1
+        jnz     @f
+        stdcall syspath_autodetect
+@@:
+
 ; LOAD DEFAULT SKIN
 
         call    load_default_skin
+        DEBUGF  1, "K : default skin load status: %x\n", eax
 
 ; Protect I/O permission map
 
@@ -997,12 +1005,6 @@ endg
         stdcall attach_int_handler, 1, irq1, 0
         DEBUGF  1, "K : IRQ1 return code %x\n", eax
 .no_keyboard:
-
-; Kolibri 2.0: resolve syspath=AUTO now that all disks are registered
-        cmp     byte [syspath_auto], 1
-        jnz     @f
-        stdcall syspath_autodetect
-@@:
 
 ; Load PS/2 mouse driver
         mov     esi, boot_setmouse
